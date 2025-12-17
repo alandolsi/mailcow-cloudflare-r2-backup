@@ -1,0 +1,34 @@
+# R2 Backup Script Logs
+- type: filestream
+  id: backup-sync-logs
+  enabled: true
+  paths:
+    - /var/log/backup_sync.log
+    # Adjust this path if your script's log file is elsewhere
+
+  fields:
+    log_type: backup_sync
+    service: cloudflare_backup
+  fields_under_root: true
+
+  processors:
+    - dissect:
+        tokenizer: "%{} %{action}: %{status}"
+        field: "message"
+        target_prefix: "backup"
+        ignore_failure: true
+    - script:
+        lang: javascript
+        source: >
+          function process(event) {
+            var msg = event.Get("message");
+            if (msg.indexOf("SUCCESS") > -1) {
+              event.Put("backup.status", "success");
+            } else if (msg.indexOf("ERROR") > -1) {
+              event.Put("backup.status", "error");
+            } else if (msg.indexOf("Backup Start") > -1) {
+              event.Put("backup.status", "started");
+            } else if (msg.indexOf("Backup Ende") > -1) {
+              event.Put("backup.status", "completed");
+            }
+          }

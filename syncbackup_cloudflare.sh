@@ -4,7 +4,14 @@
 # Requires Rclone (v1.60+)
 #
 
-# --- CONFIGURATION (via Environment Variables or Defaults) ---
+# --- LOAD CONFIGURATION FROM .env ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    # shellcheck source=/dev/null
+    source "$SCRIPT_DIR/.env"
+fi
+
+# --- CONFIGURATION (via Environment Variables, .env or Defaults) ---
 
 # Source directory for backups.
 # Default: /backup_source

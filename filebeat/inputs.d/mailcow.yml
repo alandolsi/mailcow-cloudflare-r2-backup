@@ -1,0 +1,23 @@
+# Mailcow Docker Autodiscover
+# Achtung: filebeat.autodiscover muss global definiert sein oder als separate config geladen werden.
+# Da inputs.d normalerweise für 'inputs' Listen ist, nutzen wir hier einen Trick oder definieren es direkt.
+# HINWEIS: Autodiscover funktioniert am besten in der Haupt-Config, aber Filebeat erlaubt 
+# auch separate config files für autodiscover in neueren Versionen.
+# Falls dies nicht lädt, muss der Inhalt evtl. in die filebeat.yml verschoben werden.
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      templates:
+        - condition:
+            contains:
+              docker.container.name: mailcow
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              fields:
+                log_type: mailcow
+                service: mailcow
+                host: "${NODE_NAME}"

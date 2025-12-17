@@ -1,1 +1,4 @@
-GEMINI.md
+GEMINI.md.env
+filebeat/.env
+*.log
+*.lock

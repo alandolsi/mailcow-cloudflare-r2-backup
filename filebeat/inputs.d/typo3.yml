@@ -1,0 +1,14 @@
+# Typo3 Logs
+
+- type: filestream
+  id: typo3-logs
+  enabled: true
+  paths:
+    # Standard Pfad (muss evtl. an deine Installation angepasst werden)
+    # oft in var/log/ oder typo3temp/var/logs/
+    - /var/www/*/var/log/*.log
+    - /var/www/*/typo3temp/var/logs/*.log
+  fields:
+    log_type: typo3
+    service: cms
+  fields_under_root: true

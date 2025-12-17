@@ -1,0 +1,52 @@
+# ============================== Global Filebeat Config ==============================
+# Pfad: /etc/filebeat/filebeat.yml
+
+# 1. Inputs: Lade alle Konfigurationen aus inputs.d/*.yml
+filebeat.config.inputs:
+  enabled: true
+  path: ${path.config}/inputs.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+# 2. General Server Info
+name: "${NODE_NAME}"
+tags: ["${SERVER_TAG}"]
+
+# 3. Output: Elasticsearch
+output.elasticsearch:
+  hosts: ["${ES_HOST}"]
+  username: "${ES_USER}"
+  password: "${ES_PASSWORD}"
+  ssl.verification_mode: "${SSL_VERIFY:full}"
+  
+  # Index Routing basierend auf log_type Feld
+  indices:
+    - index: "backup-logs-%{+yyyy.MM.dd}"
+      when.equals:
+        fields.log_type: "backup_sync"
+    - index: "mailcow-logs-%{+yyyy.MM.dd}"
+      when.equals:
+        fields.log_type: "mailcow"
+    - index: "cloudpanel-logs-%{+yyyy.MM.dd}"
+      when.equals:
+        fields.log_type: "cloudpanel"
+    - index: "typo3-logs-%{+yyyy.MM.dd}"
+      when.equals:
+        fields.log_type: "typo3"
+
+# 4. Kibana Setup
+setup.kibana:
+  host: "${KIBANA_HOST}"
+
+# ILM Setup
+setup.ilm.enabled: false
+setup.template.name: "custom-logs"
+setup.template.pattern: "*-logs-*"
+
+# 5. Logging des Filebeat Service selbst
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7

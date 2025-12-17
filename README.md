@@ -49,131 +49,101 @@ chmod +x syncbackup_cloudflare.sh
 
 ## Configuration
 
-The script can be configured via environment variables. Set these variables before executing the script, or export them in your shell session.
+You can configure the script using a `.env` file (recommended) or environment variables.
+
+### Method 1: Using `.env` file (Recommended)
+
+1. Copy the example configuration:
+   ```bash
+   cp backup.env.example .env
+   ```
+2. Edit `.env` with your settings:
+   ```bash
+   nano .env
+   ```
+
+### Method 2: Environment Variables
+
+You can also export variables before running the script:
+
+```bash
+export SOURCE="/var/www/html/my_app"
+export RETENTION_DAYS=7
+export RCLONE_DEST="my-r2-remote:my-bucket/daily-backups"
+./syncbackup_cloudflare.sh
+```
 
 | Variable         | Description                                                                | Default Value                         |
 | :--------------- | :------------------------------------------------------------------------- | :------------------------------------ |
 | `SOURCE`         | Source directory for backups.                                              | `/backup_source`                      |
 | `RETENTION_DAYS` | Retention time for backups in days.                                        | `5`                                   |
 | `RCLONE_DEST`    | Rclone destination in `remote-name:bucket/path` format.                    | `cloudflare-backup:my-backups/`       |
-| `BACKUP_PATTERN` | Regex pattern for automatic folder detection during restore.               | `^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$` |
-| `LOGFILE`        | Path to the log file.                                                      | `./backup_sync.log`                   |
-| `LOCKFILE`       | Path to the lock file (prevents parallel execution).                       | `./backup_sync.lock`                  |
-| `RCLONE`         | Path to the Rclone executable.                                             | `/usr/bin/rclone`                     |
-
-**Example Configuration (export before execution):**
-
-```bash
-export SOURCE="/home/user/my_data_to_backup"
-export RETENTION_DAYS=7
-export RCLONE_DEST="my-r2-remote:my-bucket/daily-backups"
-export BACKUP_PATTERN='^mydata-[0-9]{4}-[0-9]{2}-[0-9]{2}/$'
-export LOGFILE="./backup_sync.log"
-./syncbackup_cloudflare.sh
-```
-
-## Usage
-
-### Create a Backup
-
-```bash
-./syncbackup_cloudflare.sh
-# or explicitly:
-./syncbackup_cloudflare.sh backup
-```
-
-### Perform a Restore (Import)
-
-**Automatically restore the latest backup:**
-```bash
-./syncbackup_cloudflare.sh restore
-```
-
-**Restore a specific backup folder:**
-```bash
-./syncbackup_cloudflare.sh restore backup-2025-12-17-01-00-45
-```
-
-**Restore to a different destination directory:**
-```bash
-./syncbackup_cloudflare.sh restore backup-2025-12-17-01-00-45 /tmp/restore
-```
-
-## Automation with Cron
-
-Add a Cron job for regular backups:
-
-```bash
-sudo crontab -e
-```
-
-Examples:
-
-```bash
-# Daily at 2:00 AM
-0 2 * * * /path/to/syncbackup_cloudflare.sh backup
-
-# Every 6 hours
-0 */6 * * * /path/to/syncbackup_cloudflare.sh backup
-
-# Every Sunday at 3:00 AM
-0 3 * * 0 /path/to/syncbackup_cloudflare.sh backup
-```
-
+| `BACKUP_PATTERN` | Regex pattern for automatic folder detection during restore.               | `^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}...` |
+| `LOGFILE`        | Path to the log file.                                                      | `/var/log/backup_sync.log`            |
+...
 ## Logging
 
-The script writes all actions to the configured log file (default: `./backup_sync.log`).
+The script writes all actions to the configured log file (default: `/var/log/backup_sync.log`).
 
-**View Log:**
-```bash
-tail -f ./backup_sync.log
+## Monitoring with Filebeat & Kibana (Modular Setup)
+
+We use a modular Filebeat configuration to support multiple servers easily.
+
+### 1. Prepare Local Configuration
+
+On your local machine, organize your Filebeat configuration:
+
+```text
+filebeat/
+├── .env                  # Your credentials (host, user, password, tags)
+├── filebeat.yml          # Global config (loads inputs.d/*.yml)
+└── inputs.d/             # Specific log inputs
+    ├── backup.yml        # Config for this backup script
+    ├── mailcow.yml       # Config for Mailcow
+    └── ...
 ```
 
-**Check last backup activity:**
-```bash
-grep "Backup End" ./backup_sync.log | tail -1
-```
+Edit `filebeat/.env` and insert your Elasticsearch credentials and server name.
 
-## Retention Management
+### 2. Upload to Server
 
-The script automatically deletes backups older than `RETENTION_DAYS` days. The retention time can be adjusted via the `RETENTION_DAYS` environment variable.
-
-## Troubleshooting
-
-### Script is already running (Lock file exists)
+Copy the configuration to your server:
 
 ```bash
-# Manually remove the lock file (only if no backup is running!)
-rm -f ./backup_sync.lock
+# Copy all files
+scp -r filebeat/* root@your-server:/etc/filebeat/
 ```
 
-### Rclone not found
+### 3. Configure Systemd (Load .env)
+
+By default, Filebeat does not read `.env` files. We need to tell Systemd to load it.
+
+Run this on the server:
 
 ```bash
-# Check Rclone path
-which rclone
+# 1. Create override directory
+mkdir -p /etc/systemd/system/filebeat.service.d/
 
-# Adjust path in the script or via the RCLONE environment variable if necessary
+# 2. Create override file
+echo "[Service]
+EnvironmentFile=/etc/filebeat/.env" > /etc/systemd/system/filebeat.service.d/override.conf
+
+# 3. Secure the .env file (Contains passwords!)
+chmod 600 /etc/filebeat/.env
+chown root:root /etc/filebeat/.env
+
+# 4. Apply changes and restart
+systemctl daemon-reload
+systemctl restart filebeat
 ```
 
-### No permissions for log file
+### 4. Verify
+
+Check if Filebeat is running and connected:
 
 ```bash
-# Ensure the user executing the script has write permissions for the LOGFILE path.
+systemctl status filebeat
+filebeat test output
 ```
 
-## Security Notes
 
-⚠️ **Important:**
-- Protect your Rclone configuration (`~/.config/rclone/rclone.conf`)
-- Use separate R2 Access Keys with minimal permissions for production systems
-- Regularly test restores in a test environment
-- Use encrypted connections (Rclone uses HTTPS by default)
-
-## License
-
-MIT License - see LICENSE file (if present)
-
-## Contributing
-
-Pull requests are welcome! For larger changes, please open an issue first.
