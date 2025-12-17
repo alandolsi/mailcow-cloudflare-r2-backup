@@ -68,7 +68,7 @@ export SOURCE="/home/user/my_data_to_backup"
 export RETENTION_DAYS=7
 export RCLONE_DEST="my-r2-remote:my-bucket/daily-backups"
 export BACKUP_PATTERN='^mydata-[0-9]{4}-[0-9]{2}-[0-9]{2}/$'
-export LOGFILE="/var/log/my_custom_backup.log"
+export LOGFILE="./backup_sync.log"
 ./syncbackup_cloudflare.sh
 ```
 
