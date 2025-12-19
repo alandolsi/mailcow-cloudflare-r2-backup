@@ -161,7 +161,7 @@ if [ "$ACTION" = "restore" ] || [ "$ACTION" = "import" ]; then
     echo "--- Restore Start: $(date) ---" >> "$LOGFILE"
     echo "Starting restore from $RESTORE_NAME to $RESTORE_DEST ..." >> "$LOGFILE"
 
-    "$RCLONE" copy "$RCLONE_DEST$RESTORE_NAME" "$RESTORE_DEST" --transfers=2 --checkers=4 >> "$LOGFILE" 2>&1
+    "$RCLONE" copy "${RCLONE_DEST}/${RESTORE_NAME}" "$RESTORE_DEST" --transfers=2 --checkers=4 >> "$LOGFILE" 2>&1
 
     if [ $? -eq 0 ]; then
         echo "Restore: SUCCESS" >> "$LOGFILE"
@@ -193,7 +193,7 @@ echo "Checking old backups on Cloudflare (Keeping last $RETENTION_DAYS days)..."
 CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%s)
 
 # List all backup files with timestamp
-"$RCLONE" lsf "$RCLONE_DEST" --files-only --format "tp" | while read -r TIMESTAMP FILE; do
+"$RCLONE" lsf "$RCLONE_DEST" --files-only --format "tp" 2>> "$LOGFILE" | while read -r TIMESTAMP FILE; do
     # Convert rclone timestamp to Unix timestamp
     FILE_DATE=$(date -d "$TIMESTAMP" +%s 2>/dev/null)
     
@@ -209,6 +209,8 @@ CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%s)
 done
 
 echo "Cleanup completed." >> "$LOGFILE"
-
 echo "--- Backup End: $(date) ---" >> "$LOGFILE"
+
+# Force cleanup and exit
+rm -f "$LOCKFILE" 2>/dev/null
 exit 0
