@@ -23,12 +23,12 @@ RCLONE_DEST="${RCLONE_DEST:-cloudflare-backup:my-backups/}"
 BACKUP_PATTERN="${BACKUP_PATTERN:-^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$}"
 
 # Path to the log file.
-# Default: ./backup_sync.log
-LOGFILE="${LOGFILE:-./backup_sync.log}"
+# Default: /var/log/backup_sync.log
+LOGFILE="${LOGFILE:-/var/log/backup_sync.log}"
 
 # Path to the lock file (prevents parallel execution).
-# Default: ./backup_sync.lock
-LOCKFILE="${LOCKFILE:-./backup_sync.lock}"
+# Default: /var/log/backup_sync.lock
+LOCKFILE="${LOCKFILE:-/var/log/backup_sync.lock}"
 
 # Path to the rclone executable.
 # Default: /usr/bin/rclone (adjust if rclone is installed elsewhere)

@@ -57,9 +57,29 @@ The script can be configured via environment variables. Set these variables befo
 | `RETENTION_DAYS` | Retention time for backups in days.                                        | `5`                                   |
 | `RCLONE_DEST`    | Rclone destination in `remote-name:bucket/path` format.                    | `cloudflare-backup:my-backups/`       |
 | `BACKUP_PATTERN` | Regex pattern for automatic folder detection during restore.               | `^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$` |
-| `LOGFILE`        | Path to the log file.                                                      | `./backup_sync.log`                   |
-| `LOCKFILE`       | Path to the lock file (prevents parallel execution).                       | `./backup_sync.lock`                  |
+| `LOGFILE`        | Path to the log file.                                                      | `/var/log/backup_sync.log`            |
+| `LOCKFILE`       | Path to the lock file (prevents parallel execution).                       | `/var/log/backup_sync.lock`           |
 | `RCLONE`         | Path to the Rclone executable.                                             | `/usr/bin/rclone`                     |
+
+### Using Environment File
+
+Create a `backup.env` file (copy from `backup.env.example`) to store your configuration:
+
+```bash
+cp backup.env.example backup.env
+```
+
+Edit `backup.env` with your settings:
+
+```bash
+export SOURCE="/backups/"
+export RETENTION_DAYS=7
+export RCLONE_DEST="remote:backups/your-backup-destination"
+export BACKUP_PATTERN='^mailcow-[0-9]{4}-[0-9]{2}-[0-9]{2}/$'
+export LOGFILE="/var/log/backup_sync.log"
+```
+
+⚠️ **Important:** The `backup.env` file is excluded from Git to protect sensitive data. Never commit credentials to the repository.
 
 **Example Configuration (export before execution):**
 
@@ -68,7 +88,7 @@ export SOURCE="/home/user/my_data_to_backup"
 export RETENTION_DAYS=7
 export RCLONE_DEST="my-r2-remote:my-bucket/daily-backups"
 export BACKUP_PATTERN='^mydata-[0-9]{4}-[0-9]{2}-[0-9]{2}/$'
-export LOGFILE="./backup_sync.log"
+export LOGFILE="/var/log/backup_sync.log"
 ./syncbackup_cloudflare.sh
 ```
 
@@ -110,7 +130,10 @@ sudo crontab -e
 Examples:
 
 ```bash
-# Daily at 2:00 AM
+# Daily at 4:00 AM with environment file
+0 4 * * * . /root/cloudflare_r2/backup.env; /bin/bash /root/cloudflare_r2/syncbackup_cloudflare.sh
+
+# Daily at 2:00 AM (using inline environment variables)
 0 2 * * * /path/to/syncbackup_cloudflare.sh backup
 
 # Every 6 hours
@@ -120,18 +143,20 @@ Examples:
 0 3 * * 0 /path/to/syncbackup_cloudflare.sh backup
 ```
 
+**Note:** When using the environment file approach, make sure to source the file (`. /path/to/backup.env`) before running the script in the same command.
+
 ## Logging
 
 The script writes all actions to the configured log file (default: `./backup_sync.log`).
 
 **View Log:**
 ```bash
-tail -f ./backup_sync.log
+tail -f /var/log/backup_sync.log
 ```
 
 **Check last backup activity:**
 ```bash
-grep "Backup End" ./backup_sync.log | tail -1
+grep "Backup End" /var/log/backup_sync.log | tail -1
 ```
 
 ## Retention Management
@@ -144,7 +169,7 @@ The script automatically deletes backups older than `RETENTION_DAYS` days. The r
 
 ```bash
 # Manually remove the lock file (only if no backup is running!)
-rm -f ./backup_sync.lock
+rm -f /var/log/backup_sync.lock
 ```
 
 ### Rclone not found
