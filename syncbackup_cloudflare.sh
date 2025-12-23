@@ -206,12 +206,19 @@ fi
 
 echo "--- Backup Start: $(date) ---" >> "$LOGFILE"
 
+# Check source directory
+FILE_COUNT=$(find "$SOURCE" -type f 2>/dev/null | wc -l)
+SOURCE_SIZE=$(du -sh "$SOURCE" 2>/dev/null | cut -f1)
+
 # 1. UPLOAD (COPY)
 echo "Starting upload to Cloudflare..." >> "$LOGFILE"
 echo ""
 echo "========================================="
 echo "  Uploading Backup to Cloudflare R2"
 echo "========================================="
+echo ""
+echo "  Source: $SOURCE"
+echo "  Files found: $FILE_COUNT ($SOURCE_SIZE)"
 echo ""
 
 "$RCLONE" copy "$SOURCE" "$RCLONE_DEST" \
@@ -220,9 +227,8 @@ echo ""
     --stats 1s \
     --transfers=4 \
     --checkers=8 \
+    --verbose \
     >> "$LOGFILE" 2>&1
-
-RCLONE_EXIT=$?
 
 RCLONE_EXIT=$?
 
@@ -232,11 +238,17 @@ if [ $RCLONE_EXIT -eq 0 ]; then
     echo "  ✓ Upload Complete!"
     echo "========================================="
     
-    # Get upload summary from last log entries
-    UPLOADED_FILES=$(grep -c "Copied (new)" "$LOGFILE" 2>/dev/null || echo "0")
+    # Count actually transferred files from this run
+    NEW_FILES=$(tail -100 "$LOGFILE" | grep -c "Copied (new)" || echo "0")
+    SKIPPED_FILES=$((FILE_COUNT - NEW_FILES))
     
     echo ""
-    echo "  Files uploaded: $UPLOADED_FILES"
+    if [ "$NEW_FILES" -gt 0 ]; then
+        echo "  New files uploaded: $NEW_FILES"
+        echo "  Already synced: $SKIPPED_FILES"
+    else
+        echo "  All files already synced ($FILE_COUNT files, $SOURCE_SIZE)"
+    fi
     echo "  Destination: $RCLONE_DEST"
     echo ""
 else
