@@ -53,9 +53,10 @@ if [ $# -eq 0 ]; then
     echo ""
     echo "  1) Backup - Upload current data to Cloudflare R2"
     echo "  2) Restore - Download backup from Cloudflare R2"
-    echo "  3) Exit"
+    echo "  3) Update - Update this script from repository"
+    echo "  4) Exit"
     echo ""
-    read -p "Please select [1-3]: " choice
+    read -p "Please select [1-4]: " choice
     
     case $choice in
         1)
@@ -111,6 +112,9 @@ if [ $# -eq 0 ]; then
             fi
             ;;
         3)
+            ACTION="update"
+            ;;
+        4)
             echo "Goodbye!"
             exit 0
             ;;
@@ -121,9 +125,47 @@ if [ $# -eq 0 ]; then
     esac
 else
     # --- MODE / PARAMETERS (non-interactive) ---
-    ACTION=${1:-backup}               # backup (default) or restore/import
+    ACTION=${1:-backup}               # backup, restore/import, or update
     RESTORE_NAME=${2:-}               # Name/folder/file on R2 (required for restore/import)
     RESTORE_DEST=${3:-$SOURCE}        # Local destination directory (default: $SOURCE)
+fi
+
+# --- UPDATE MODE ---
+if [ "$ACTION" = "update" ]; then
+    echo ""
+    echo "========================================="
+    echo "  Updating Script from Repository"
+    echo "========================================="
+    echo ""
+    
+    # Find repository directory (where this script is symlinked from)
+    REAL_SCRIPT=$(readlink -f "${BASH_SOURCE[0]}")
+    REPO_DIR=$(dirname "$REAL_SCRIPT")
+    
+    if [ ! -d "$REPO_DIR/.git" ]; then
+        echo "ERROR: Git repository not found"
+        echo "Script location: $REAL_SCRIPT"
+        exit 1
+    fi
+    
+    echo "Repository: $REPO_DIR"
+    echo ""
+    
+    # Pull latest changes
+    cd "$REPO_DIR" || exit 1
+    echo "Running: git pull"
+    git pull
+    
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "ERROR: git pull failed"
+        exit 1
+    fi
+    
+    echo ""
+    echo "✓ Update complete!"
+    echo ""
+    exit 0
 fi
 
 # Check for lock file (prevents parallel execution)
