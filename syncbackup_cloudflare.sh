@@ -153,8 +153,8 @@ if [ "$ACTION" = "update" ]; then
     
     # Pull latest changes
     cd "$REPO_DIR" || exit 1
-    echo "Running: git pull"
-    git pull
+    echo "Running: git pull --ff-only"
+    git pull --ff-only
     
     if [ $? -ne 0 ]; then
         echo ""
