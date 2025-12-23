@@ -252,6 +252,10 @@ echo "--- Backup Start: $(date) ---" >> "$LOGFILE"
 FILE_COUNT=$(find "$SOURCE" -type f 2>/dev/null | wc -l)
 SOURCE_SIZE=$(du -sh "$SOURCE" 2>/dev/null | cut -f1)
 
+# Mark log position for this backup run
+LOG_MARKER="=== BACKUP RUN $(date +%s) ==="
+echo "$LOG_MARKER" >> "$LOGFILE"
+
 # 1. UPLOAD (COPY)
 echo "Starting upload to Cloudflare..." >> "$LOGFILE"
 echo ""
@@ -280,14 +284,13 @@ if [ $RCLONE_EXIT -eq 0 ]; then
     echo "  ✓ Upload Complete!"
     echo "========================================="
     
-    # Count actually transferred files from this run
-    NEW_FILES=$(tail -100 "$LOGFILE" | grep -c "Copied (new)" || echo "0")
-    SKIPPED_FILES=$((FILE_COUNT - NEW_FILES))
+    # Count only files transferred in THIS run (after marker)
+    NEW_FILES=$(sed -n "/$LOG_MARKER/,\$p" "$LOGFILE" | grep -c "Copied (new)" || echo "0")
     
     echo ""
     if [ "$NEW_FILES" -gt 0 ]; then
         echo "  New files uploaded: $NEW_FILES"
-        echo "  Already synced: $SKIPPED_FILES"
+        echo "  Already synced: $((FILE_COUNT - NEW_FILES))"
     else
         echo "  All files already synced ($FILE_COUNT files, $SOURCE_SIZE)"
     fi
