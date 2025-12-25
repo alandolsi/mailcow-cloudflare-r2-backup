@@ -25,6 +25,8 @@ RETENTION_DAYS="${RETENTION_DAYS:-5}"
 # Rclone destination (format: remote-name:bucket/path).
 # Default: cloudflare-backup:my-backups/
 RCLONE_DEST="${RCLONE_DEST:-cloudflare-backup:my-backups/}"
+# Normalize destination to avoid duplicate slashes
+RCLONE_DEST_TRIMMED="${RCLONE_DEST%/}"
 
 # Regex pattern for automatic folder detection during restore.
 # Default: generic backup pattern
@@ -75,7 +77,7 @@ if [ $# -eq 0 ]; then
             echo ""
             
             # List all backup folders
-            mapfile -t BACKUP_FOLDERS < <("$RCLONE" lsf "$RCLONE_DEST" --dirs-only | grep -E "$BACKUP_PATTERN" | sed 's:/$::' | sort -r)
+            mapfile -t BACKUP_FOLDERS < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only | grep -E "$BACKUP_PATTERN" | sed 's:/$::' | sort -r)
             
             if [ ${#BACKUP_FOLDERS[@]} -eq 0 ]; then
                 echo "ERROR: No backup folders found on R2"
@@ -190,7 +192,7 @@ if [ "$ACTION" = "restore" ] || [ "$ACTION" = "import" ]; then
     if [ -z "$RESTORE_NAME" ]; then
         echo "Searching for the newest backup folder..." >> "$LOGFILE"
         # List all folders, sort descending and take the first one (newest)
-        RESTORE_NAME=$("$RCLONE" lsf "$RCLONE_DEST" --dirs-only | grep -E "$BACKUP_PATTERN" | sort -r | head -n 1 | sed 's:/$::')
+        RESTORE_NAME=$("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only | grep -E "$BACKUP_PATTERN" | sort -r | head -n 1 | sed 's:/$::')
         
         if [ -z "$RESTORE_NAME" ]; then
             echo "$(date): ERROR - No backup folder found" >> "$LOGFILE"
@@ -210,7 +212,7 @@ if [ "$ACTION" = "restore" ] || [ "$ACTION" = "import" ]; then
     echo "========================================="
     echo ""
 
-    "$RCLONE" copy "${RCLONE_DEST}/${RESTORE_NAME}" "$RESTORE_DEST" \
+    "$RCLONE" copy "${RCLONE_DEST_TRIMMED}/${RESTORE_NAME}" "$RESTORE_DEST" \
         --progress \
         --stats-one-line \
         --stats 1s \
@@ -267,7 +269,7 @@ echo "  Source: $SOURCE"
 echo "  Files found: $FILE_COUNT ($SOURCE_SIZE)"
 echo ""
 
-"$RCLONE" copy "$SOURCE" "$RCLONE_DEST" \
+"$RCLONE" copy "$SOURCE" "$RCLONE_DEST_TRIMMED" \
     --progress \
     --stats-one-line \
     --stats 1s \
@@ -294,7 +296,7 @@ if [ $RCLONE_EXIT -eq 0 ]; then
     else
         echo "  All files already synced ($FILE_COUNT files, $SOURCE_SIZE)"
     fi
-    echo "  Destination: $RCLONE_DEST"
+    echo "  Destination: $RCLONE_DEST_TRIMMED"
     echo ""
 else
     echo "========================================="
@@ -319,24 +321,30 @@ CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%s)
 DELETED_COUNT=0
 
 # List all backup files with timestamp
-"$RCLONE" lsf "$RCLONE_DEST" --files-only --format "tp" 2>> "$LOGFILE" | while read -r TIMESTAMP FILE; do
-    # Convert rclone timestamp to Unix timestamp
-    FILE_DATE=$(date -d "$TIMESTAMP" +%s 2>/dev/null)
+while read -r TIMESTAMP DIR; do
+    # Normalize directory name (remove trailing slash)
+    DIR=${DIR%/}
+    # Consider only directories matching BACKUP_PATTERN
+    if ! echo "${DIR}/" | grep -Eq "$BACKUP_PATTERN"; then
+        continue
+    fi
+
+    DIR_DATE=$(date -d "$TIMESTAMP" +%s 2>/dev/null)
     
-    if [ $? -eq 0 ] && [ "$FILE_DATE" -lt "$CUTOFF_DATE" ]; then
-        echo "  Deleting: $FILE" | tee -a "$LOGFILE"
-        "$RCLONE" deletefile "$RCLONE_DEST/$FILE" >> "$LOGFILE" 2>&1
+    if [ $? -eq 0 ] && [ "$DIR_DATE" -lt "$CUTOFF_DATE" ]; then
+        echo "  Deleting folder: $DIR" | tee -a "$LOGFILE"
+        "$RCLONE" purge "${RCLONE_DEST_TRIMMED}/${DIR}" >> "$LOGFILE" 2>&1
         if [ $? -eq 0 ]; then
             ((DELETED_COUNT++))
         fi
     fi
-done
+done < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only --format "tp" 2>> "$LOGFILE")
 
 echo ""
 if [ "$DELETED_COUNT" -gt 0 ]; then
-    echo "  Deleted $DELETED_COUNT old file(s)" | tee -a "$LOGFILE"
+    echo "  Deleted $DELETED_COUNT old backup folder(s)" | tee -a "$LOGFILE"
 else
-    echo "  No old files to delete" | tee -a "$LOGFILE"
+    echo "  No old backup folders to delete" | tee -a "$LOGFILE"
 fi
 echo ""
 echo "--- Backup End: $(date) ---" >> "$LOGFILE"
