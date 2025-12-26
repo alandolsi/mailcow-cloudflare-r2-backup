@@ -7,8 +7,8 @@
 # Get the directory where this script is located (resolve symlinks)
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 
-# Try to load backup.env from script directory if it exists and variables are not set
-if [ -f "$SCRIPT_DIR/backup.env" ] && [ -z "$SOURCE" ]; then
+# Try to load backup.env from script directory if it exists
+if [ -f "$SCRIPT_DIR/backup.env" ]; then
     source "$SCRIPT_DIR/backup.env"
 fi
 
@@ -318,9 +318,18 @@ echo ""
 
 DELETED_COUNT=0
 
-# Get candidate backup dirs using the same approach that works in manual tests
+# List directories first; if rclone fails, show the error on terminal (otherwise it gets hidden in the logfile)
+LSF_OUTPUT=$("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only 2>&1)
+LSF_EXIT=$?
+if [ $LSF_EXIT -ne 0 ]; then
+    echo "  ERROR: rclone failed to list directories at: $RCLONE_DEST_TRIMMED" | tee -a "$LOGFILE"
+    echo "  rclone output: $LSF_OUTPUT" | tee -a "$LOGFILE"
+    exit 1
+fi
+
+# Filter backup dirs using the same approach that works in manual tests
 mapfile -t BACKUP_DIRS < <(
-    "$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only 2>> "$LOGFILE" \
+    printf '%s\n' "$LSF_OUTPUT" \
     | tr -d '\r' \
     | grep -E -- "$BACKUP_PATTERN" \
     | sort -r
@@ -331,6 +340,7 @@ echo "  Found $CURRENT_COUNT backup folder(s) matching pattern" | tee -a "$LOGFI
 
 if [ "$CURRENT_COUNT" -eq 0 ]; then
     echo "  WARNING: No backups matched BACKUP_PATTERN. Check backup.env BACKUP_PATTERN and destination path." | tee -a "$LOGFILE"
+    echo "  Hint: run: rclone lsf \"$RCLONE_DEST_TRIMMED\" --dirs-only | tr -d \\r | grep -E -- \"$BACKUP_PATTERN\"" | tee -a "$LOGFILE"
 fi
 
 # Delete everything older than the newest RETENTION_DAYS backups
