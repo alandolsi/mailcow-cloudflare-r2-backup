@@ -30,7 +30,7 @@ RCLONE_DEST_TRIMMED="${RCLONE_DEST%/}"
 
 # Regex pattern for automatic folder detection during restore.
 # Default: generic backup pattern
-BACKUP_PATTERN="${BACKUP_PATTERN:-^backup-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$}"
+BACKUP_PATTERN="${BACKUP_PATTERN:-^mailcow-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$}"
 
 # Path to the log file.
 # Default: /var/log/backup_sync.log
