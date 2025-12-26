@@ -29,8 +29,8 @@ RCLONE_DEST="${RCLONE_DEST:-cloudflare-backup:my-backups/}"
 RCLONE_DEST_TRIMMED="${RCLONE_DEST%/}"
 
 # Regex pattern for automatic folder detection during restore.
-# Default: generic backup pattern
-BACKUP_PATTERN="${BACKUP_PATTERN:-^mailcow-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}/$}"
+# Default: mailcow backup folder pattern (date with optional time)
+BACKUP_PATTERN="${BACKUP_PATTERN:-^mailcow-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{2}-[0-9]{2}-[0-9]{2})?/$}"
 
 # Path to the log file.
 # Default: /var/log/backup_sync.log
@@ -319,8 +319,14 @@ echo ""
 DELETED_COUNT=0
 CURRENT_COUNT=0
 
-# List all backup files, sort by name descending (newest first due to YYYY-MM-DD naming)
-while read -r DIR; do
+mapfile -t ALL_DIRS < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only 2>> "$LOGFILE" | sort -r)
+
+if [ ${#ALL_DIRS[@]} -eq 0 ]; then
+    echo "  No directories found at destination (check RCLONE_DEST and rclone config)" | tee -a "$LOGFILE"
+fi
+
+# List all backup folders, sort by name descending (newest first due to YYYY-MM-DD naming)
+for DIR in "${ALL_DIRS[@]}"; do
     # Normalize directory name (remove trailing slash)
     DIR=${DIR%/}
     
@@ -340,8 +346,9 @@ while read -r DIR; do
     else
         echo "  Keeping backup $CURRENT_COUNT: $DIR" >> "$LOGFILE"
     fi
-done < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only | sort -r)
+done
 
+echo "  Found $CURRENT_COUNT backup folder(s) matching pattern" | tee -a "$LOGFILE"
 echo ""
 if [ "$DELETED_COUNT" -gt 0 ]; then
     echo "  Deleted $DELETED_COUNT old backup folder(s)" | tee -a "$LOGFILE"
