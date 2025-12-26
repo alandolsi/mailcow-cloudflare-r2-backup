@@ -327,11 +327,12 @@ fi
 
 # List all backup folders, sort by name descending (newest first due to YYYY-MM-DD naming)
 for DIR in "${ALL_DIRS[@]}"; do
-    # Normalize directory name (remove trailing slash)
+    # Normalize directory name
     DIR=${DIR%/}
-    
-    # Consider only directories matching BACKUP_PATTERN
-    if ! echo "${DIR}/" | grep -Eq "$BACKUP_PATTERN"; then
+    DIR=${DIR%$'\r'}
+
+    # Consider only directories matching BACKUP_PATTERN (support patterns with or without trailing slash)
+    if ! printf '%s\n%s/\n' "$DIR" "$DIR" | grep -Eq "$BACKUP_PATTERN"; then
         continue
     fi
 
@@ -349,6 +350,10 @@ for DIR in "${ALL_DIRS[@]}"; do
 done
 
 echo "  Found $CURRENT_COUNT backup folder(s) matching pattern" | tee -a "$LOGFILE"
+if [ "$CURRENT_COUNT" -eq 0 ]; then
+    echo "  WARNING: No backups matched BACKUP_PATTERN. Check backup.env BACKUP_PATTERN and destination path." | tee -a "$LOGFILE"
+fi
+
 echo ""
 if [ "$DELETED_COUNT" -gt 0 ]; then
     echo "  Deleted $DELETED_COUNT old backup folder(s)" | tee -a "$LOGFILE"
