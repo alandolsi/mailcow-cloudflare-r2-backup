@@ -18,8 +18,8 @@ fi
 # Default: /backup_source
 SOURCE="${SOURCE:-/backup_source}"
 
-# Retention time in days.
-# Default: 5 days
+# Retention count (number of backups to keep).
+# Default: 5
 RETENTION_DAYS="${RETENTION_DAYS:-5}"
 
 # Rclone destination (format: remote-name:bucket/path).
@@ -308,37 +308,40 @@ else
     exit 1
 fi
 
-# 2. CLEANUP (Delete backups older than RETENTION_DAYS days)
+# 2. CLEANUP (Keep only the latest RETENTION_DAYS backups)
 echo "========================================="
 echo "  Cleaning up old backups..."
 echo "========================================="
 echo ""
-echo "Retention: $RETENTION_DAYS days" | tee -a "$LOGFILE"
+echo "Retention policy: Keep latest $RETENTION_DAYS backups" | tee -a "$LOGFILE"
 echo ""
 
-# Calculate cutoff date (X days ago)
-CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" +%s)
 DELETED_COUNT=0
+CURRENT_COUNT=0
 
-# List all backup files with timestamp
-while read -r TIMESTAMP DIR; do
+# List all backup files with timestamp, sort by time descending (newest first)
+while read -r DATE TIME DIR; do
+    TIMESTAMP="$DATE $TIME"
     # Normalize directory name (remove trailing slash)
     DIR=${DIR%/}
+    
     # Consider only directories matching BACKUP_PATTERN
     if ! echo "${DIR}/" | grep -Eq "$BACKUP_PATTERN"; then
         continue
     fi
 
-    DIR_DATE=$(date -d "$TIMESTAMP" +%s 2>/dev/null)
-    
-    if [ $? -eq 0 ] && [ "$DIR_DATE" -lt "$CUTOFF_DATE" ]; then
-        echo "  Deleting folder: $DIR" | tee -a "$LOGFILE"
+    ((CURRENT_COUNT++))
+
+    if [ "$CURRENT_COUNT" -gt "$RETENTION_DAYS" ]; then
+        echo "  Deleting old backup ($CURRENT_COUNT > $RETENTION_DAYS): $DIR (Date: $TIMESTAMP)" | tee -a "$LOGFILE"
         "$RCLONE" purge "${RCLONE_DEST_TRIMMED}/${DIR}" >> "$LOGFILE" 2>&1
         if [ $? -eq 0 ]; then
             ((DELETED_COUNT++))
         fi
+    else
+        echo "  Keeping backup $CURRENT_COUNT: $DIR (Date: $TIMESTAMP)" >> "$LOGFILE"
     fi
-done < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only --format "tp" 2>> "$LOGFILE")
+done < <("$RCLONE" lsf "$RCLONE_DEST_TRIMMED" --dirs-only --format "tp" | sort -r)
 
 echo ""
 if [ "$DELETED_COUNT" -gt 0 ]; then
